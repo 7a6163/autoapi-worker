@@ -1,0 +1,22 @@
+name = "autoapi-e5"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# KV Namespaces for storing tokens and config
+[[kv_namespaces]]
+binding = "E5_CONFIG"
+id = "your-kv-namespace-id"
+
+# Cron triggers for scheduled tasks
+[triggers]
+crons = [
+    "10 10 * * 1,4,6",  # Update Token: Mon, Thu, Sat at 10:10 UTC
+    "12 */6 * * 1-5",   # Read APIs: Every 6 hours on weekdays  
+    "12 23 * * *"       # Write APIs: Daily at 23:12 UTC
+]
+
+# Environment variables (add these in Cloudflare dashboard)
+# CLIENT_ID = ""
+# CLIENT_SECRET = ""
+# TELEGRAM_BOT_TOKEN = ""
+# CHAT_ID = ""
