@@ -22,7 +22,7 @@ npm install
 
 ```bash
 # Create KV namespace
-wrangler kv:namespace create "E5_CONFIG"
+wrangler kv namespace create "E5_CONFIG"
 
 # Update the returned ID in wrangler.toml's id field
 ```
@@ -39,7 +39,7 @@ Set in Cloudflare Dashboard:
 
 ```bash
 # Write initial refresh_token to KV
-wrangler kv:key put --namespace-id=YOUR_NAMESPACE_ID "MS_TOKEN" "YOUR_REFRESH_TOKEN"
+wrangler kv key put --namespace-id=YOUR_NAMESPACE_ID "MS_TOKEN" "YOUR_REFRESH_TOKEN" --remote
 ```
 
 ### 5. Deploy

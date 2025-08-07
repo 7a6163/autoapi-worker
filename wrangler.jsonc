@@ -1,0 +1,70 @@
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "autoapi-e5",
+	"main": "src/index.js",
+	"compatibility_date": "2025-07-25",
+	"observability": {
+		"enabled": true
+	},
+
+	/**
+	 * Smart Placement
+	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
+	 */
+	// "placement": { "mode": "smart" },
+
+	/**
+	 * Bindings
+	 * Bindings allow your Worker to interact with resources on the Cloudflare Developer Platform, including
+	 * databases, object storage, AI inference, real-time communication and more.
+	 * https://developers.cloudflare.com/workers/runtime-apis/bindings/
+	 */
+
+	/**
+	 * Environment Variables
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#environment-variables
+	 */
+	// "vars": { "MY_VARIABLE": "production_value" },
+	/**
+	 * Note: Use secrets to store sensitive data.
+	 * https://developers.cloudflare.com/workers/configuration/secrets/
+	 */
+
+	 "vars": {
+		"CLIENT_ID": "",
+		"CLIENT_SECRET": "",
+		"TELEGRAM_BOT_TOKEN": "",
+		"CHAT_ID": ""
+	},
+
+	"kv_namespaces": [
+		{
+		  "binding": "E5_CONFIG",
+		  "id": "your-kv-namespace-id" // IMPORTANT: Change this to your KV namespace ID
+		}
+	  ],
+
+	"triggers": {
+		"crons": [
+			"10 10 * * 1,4,6",  // Update Token: Mon, Thu, Sat at 10:10 UTC
+			"12 */6 * * 1-5",   // Read APIs: Every 6 hours on weekdays
+			"12 23 * * *"       // Write APIs: Daily at 23:12 UTC
+		]
+	},
+
+	/**
+	 * Static Assets
+	 * https://developers.cloudflare.com/workers/static-assets/binding/
+	 */
+	// "assets": { "directory": "./public/", "binding": "ASSETS" },
+
+	/**
+	 * Service Bindings (communicate between multiple Workers)
+	 * https://developers.cloudflare.com/workers/wrangler/configuration/#service-bindings
+	 */
+	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
+}
