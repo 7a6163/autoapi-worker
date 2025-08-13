@@ -5,7 +5,7 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "autoapi-e5",
-	"main": "src/index.js",
+	"main": "src/index-hono.ts",
 	"compatibility_date": "2025-07-25",
 	"observability": {
 		"enabled": true
@@ -34,12 +34,20 @@
 	 * https://developers.cloudflare.com/workers/configuration/secrets/
 	 */
 
-	 "vars": {
-		"CLIENT_ID": "",
-		"CLIENT_SECRET": "",
-		"TELEGRAM_BOT_TOKEN": "",
-		"CHAT_ID": ""
-	},
+	/**
+	 * Sensitive config: use Secrets instead of vars.
+	 * Set them via Wrangler CLI:
+	 *   wrangler secret put CLIENT_ID
+	 *   wrangler secret put CLIENT_SECRET
+	 *   wrangler secret put TELEGRAM_BOT_TOKEN
+	 *   wrangler secret put CHAT_ID
+	 */
+	// "vars": {
+	// 	"CLIENT_ID": "",
+	// 	"CLIENT_SECRET": "",
+	// 	"TELEGRAM_BOT_TOKEN": "",
+	// 	"CHAT_ID": ""
+	// },
 
 	"kv_namespaces": [
 		{

@@ -24,16 +24,23 @@ npm install
 # Create KV namespace
 wrangler kv namespace create "E5_CONFIG"
 
-# Update the returned ID in wrangler.toml's id field
+# Update the returned ID in `wrangler.jsonc` under `kv_namespaces[0].id`
 ```
 
-### 3. Set Environment Variables
+### 3. Set Secrets (recommended)
 
-Set in Cloudflare Dashboard:
-- `CLIENT_ID`: Azure Application ID
-- `CLIENT_SECRET`: Azure Application Secret
-- `TELEGRAM_BOT_TOKEN`: Telegram bot token (optional)
-- `CHAT_ID`: Telegram chat ID (optional)
+Use Cloudflare Secrets instead of plain env vars:
+
+```bash
+wrangler secret put CLIENT_ID            # Azure Application ID
+wrangler secret put CLIENT_SECRET        # Azure Application Secret
+wrangler secret put TELEGRAM_BOT_TOKEN   # optional
+wrangler secret put CHAT_ID              # optional
+```
+
+Notes:
+- Secrets are referenced in code via `c.env.VAR_NAME` (e.g. `c.env.CLIENT_ID`).
+- For local development, you can use `wrangler secret put` in dev too, or a `.dev.vars` file (not committed) for convenience.
 
 ### 4. Initialize Token
 
