@@ -1,12 +1,13 @@
 {
-  "name": "autoapi-worker",
+  "name": "autoapi-e5",
   "version": "1.0.0",
   "description": "E5 Auto Renewal on Cloudflare Workers",
-  "main": "src/index.js",
+  "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "tail": "wrangler tail"
+    "tail": "wrangler tail",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "xlsx": "npm:@e965/xlsx@0.20.3",

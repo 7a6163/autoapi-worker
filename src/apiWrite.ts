@@ -1,23 +1,11 @@
-import { sendTelegramMessage } from './index';
-import * as XLSX from 'xlsx';
-import type { WorkerEnv } from './types';
-
-interface Config {
-  app_delay: boolean;
-  app_delay_min: number;
-  app_delay_max: number;
-}
-
-interface TokenResponse {
-  access_token: string;
-  refresh_token?: string;
-  expires_in?: number;
-  token_type?: string;
-}
+import { sendTelegramMessage } from "./telegram";
+import { ensureAccessToken } from "./auth";
+import { pickRandom } from "./utils";
+import * as XLSX from "xlsx";
+import type { WorkerEnv } from "./types";
 
 interface TableData {
   id: string;
-  name?: string;
 }
 
 interface TeamData {
@@ -49,97 +37,58 @@ interface ChannelData {
   displayName: string;
 }
 
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 1000;
+const TEAM_CREATION_WAIT_MS = 3000;
+
 export async function runWriteAPIs(env: WorkerEnv): Promise<void> {
   try {
-    // Get access token
-    let accessToken = await env.E5_CONFIG.get('ACCESS_TOKEN');
+    const accessToken = await ensureAccessToken(env);
 
-    if (!accessToken) {
-      const refreshToken = await env.E5_CONFIG.get('MS_TOKEN');
-      if (!refreshToken) {
-        throw new Error('No refresh token found');
-      }
-      
-      const tokens = await getAccessToken(refreshToken, env.CLIENT_ID, env.CLIENT_SECRET);
-      accessToken = tokens.access_token;
-
-      await env.E5_CONFIG.put('ACCESS_TOKEN', accessToken, {
-        expirationTtl: 3600
-      });
-    }
-
-    // Config for delays (similar to original Python version)
-    const config: Config = {
-      app_delay: true,
-      app_delay_min: 2,
-      app_delay_max: 8
-    };
-
-    // Generate random filename
     const filename = `QAQ${Math.floor(Math.random() * 600)}.xlsx`;
 
-    // Create Excel file using manual XLSX generation
-    console.log('Creating Excel file...');
-    const excelBuffer = await createExcelFile();
+    console.log("Creating Excel file...");
+    const excelBuffer = createExcelFile();
 
-    // Upload to OneDrive
-    console.log('Uploading file to OneDrive...');
+    console.log("Uploading file to OneDrive...");
     await uploadToOneDrive(filename, excelBuffer, accessToken);
 
-    // Randomly select 2 operations from 4 options
-    const operations: number[] = [1, 2, 3, 4];
-    const selectedOps: number[] = [];
-    for (let i = 0; i < 2; i++) {
-      const randomIndex = Math.floor(Math.random() * operations.length);
-      selectedOps.push(operations[randomIndex]);
-      operations.splice(randomIndex, 1);
-    }
+    const allOps = [1, 2, 3, 4] as const;
+    const selectedOps = pickRandom(allOps, 2);
 
-    for (let i = 0; i < selectedOps.length; i++) {
-      const op = selectedOps[i];
-
-      // Random delay between operations
-      if (config.app_delay && i > 0) {
-        const delay = randomDelay(config.app_delay_min, config.app_delay_max);
-        console.log(`Waiting ${delay} seconds before next operation...`);
-        await new Promise<void>(resolve => setTimeout(resolve, delay * 1000));
-      }
-
+    for (const op of selectedOps) {
       switch (op) {
         case 1:
-          console.log('Excel file operation...');
+          console.log("Excel file operation...");
           await modifyExcelFile(filename, accessToken);
           break;
         case 2:
-          console.log('Teams operation...');
+          console.log("Teams operation...");
           await createAndDeleteTeam(accessToken);
           break;
         case 3:
-          console.log('Tasks operation...');
+          console.log("Tasks operation...");
           await createAndDeleteTask(accessToken);
           break;
         case 4:
-          console.log('OneNote operation...');
+          console.log("OneNote operation...");
           await createAndDeleteNotebook(accessToken);
           break;
       }
     }
 
-    console.log('Write APIs completed successfully');
-    await sendTelegramMessage(env, '✅ AutoApi 成功執行寫入型 API');
-
+    console.log("Write APIs completed successfully");
+    await sendTelegramMessage(env, "✅ AutoApi 成功執行寫入型 API");
   } catch (error) {
-    console.error('Write APIs failed:', error);
-    await sendTelegramMessage(env, '❌ AutoApi 執行寫入型 API 失敗');
+    console.error("Write APIs failed:", error);
+    await sendTelegramMessage(env, "❌ AutoApi 執行寫入型 API 失敗");
     throw error;
   }
 }
 
-async function createExcelFile(): Promise<Buffer> {
-  // Create workbook using SheetJS
+function createExcelFile(): Uint8Array {
   const workbook = XLSX.utils.book_new();
 
-  // Generate random data
   const data: number[][] = [];
   for (let row = 0; row < 4; row++) {
     const rowData: number[] = [];
@@ -149,49 +98,55 @@ async function createExcelFile(): Promise<Buffer> {
     data.push(rowData);
   }
 
-  // Create worksheet from data
   const worksheet = XLSX.utils.aoa_to_sheet(data);
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
 
-  // Add worksheet to workbook
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1');
-
-  // Generate XLSX buffer
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
-
-  return buffer as Buffer;
+  const output = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  return new Uint8Array(output);
 }
 
-async function uploadToOneDrive(filename: string, buffer: Buffer, accessToken: string): Promise<void> {
+async function uploadToOneDrive(
+  filename: string,
+  data: Uint8Array,
+  accessToken: string,
+): Promise<void> {
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}:/content`;
-
-  const response = await apiRequest('PUT', url, buffer, accessToken);
-  if (response.ok) {
-    console.log('    File uploaded successfully');
-  }
+  await apiRequest("PUT", url, data, accessToken);
+  console.log("    File uploaded successfully");
 }
 
-async function modifyExcelFile(filename: string, accessToken: string): Promise<void> {
+async function modifyExcelFile(
+  filename: string,
+  accessToken: string,
+): Promise<void> {
   const sheetName = `QVQ${Math.floor(Math.random() * 600)}`;
+  const basePath = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}:/workbook`;
 
-  // Add worksheet
-  console.log('    Adding worksheet');
-  let url = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}:/workbook/worksheets/add`;
-  let data = { name: sheetName };
-  await apiRequest('POST', url, JSON.stringify(data), accessToken);
+  console.log("    Adding worksheet");
+  const addSheetUrl = `${basePath}/worksheets/add`;
+  await apiRequest(
+    "POST",
+    addSheetUrl,
+    JSON.stringify({ name: sheetName }),
+    accessToken,
+  );
 
-  // Add table
-  console.log('    Adding table');
-  url = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}:/workbook/worksheets/${sheetName}/tables/add`;
-  data = {
-    address: "A1:D8",
-    hasHeaders: false
-  };
-  const tableResponse = await apiRequest('POST', url, JSON.stringify(data), accessToken);
-  const tableData = await tableResponse.json() as TableData;
+  console.log("    Adding table");
+  const addTableUrl = `${basePath}/worksheets/${sheetName}/tables/add`;
+  const tableResponse = await apiRequest(
+    "POST",
+    addTableUrl,
+    JSON.stringify({ address: "A1:D8", hasHeaders: false }),
+    accessToken,
+  );
 
-  // Add rows
-  console.log('    Adding rows');
-  url = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}:/workbook/tables/${tableData.id}/rows/add`;
+  const tableData = (await tableResponse.json()) as TableData;
+  if (!tableData.id) {
+    throw new Error("Table creation returned no ID");
+  }
+
+  console.log("    Adding rows");
+  const addRowsUrl = `${basePath}/tables/${tableData.id}/rows/add`;
   const rowsValues: number[][] = [];
   for (let i = 0; i < 2; i++) {
     const row: number[] = [];
@@ -200,183 +155,185 @@ async function modifyExcelFile(filename: string, accessToken: string): Promise<v
     }
     rowsValues.push(row);
   }
-  const rowData = { values: rowsValues };
-  await apiRequest('POST', url, JSON.stringify(rowData), accessToken);
+  await apiRequest(
+    "POST",
+    addRowsUrl,
+    JSON.stringify({ values: rowsValues }),
+    accessToken,
+  );
 }
 
 async function createAndDeleteTeam(accessToken: string): Promise<void> {
   const teamName = `QVQ${Math.floor(Math.random() * 600)}`;
 
-  // Create team
-  console.log('    Creating team');
-  let url = 'https://graph.microsoft.com/v1.0/teams';
-  let data = {
-    "template@odata.bind": "https://graph.microsoft.com/v1.0/teamsTemplates('standard')",
-    displayName: teamName,
-    description: "My Sample Team's Description"
-  };
-  await apiRequest('POST', url, JSON.stringify(data), accessToken);
+  console.log("    Creating team");
+  const createTeamUrl = "https://graph.microsoft.com/v1.0/teams";
+  await apiRequest(
+    "POST",
+    createTeamUrl,
+    JSON.stringify({
+      "template@odata.bind":
+        "https://graph.microsoft.com/v1.0/teamsTemplates('standard')",
+      displayName: teamName,
+      description: "My Sample Team's Description",
+    }),
+    accessToken,
+  );
 
-  // Wait for team creation
-  await new Promise<void>(resolve => setTimeout(resolve, 5000));
+  await new Promise<void>((resolve) =>
+    setTimeout(resolve, TEAM_CREATION_WAIT_MS),
+  );
 
-  // Get team info
-  console.log('    Getting team info');
-  url = 'https://graph.microsoft.com/v1.0/me/joinedTeams';
-  const teamsResponse = await apiRequest('GET', url, null, accessToken);
-  const teamsData = await teamsResponse.json() as TeamsResponse;
+  console.log("    Getting team info");
+  const listTeamsUrl = "https://graph.microsoft.com/v1.0/me/joinedTeams";
+  const teamsResponse = await apiRequest("GET", listTeamsUrl, null, accessToken);
+  const teamsData = (await teamsResponse.json()) as TeamsResponse;
 
-  const team = teamsData.value.find(t => t.displayName === teamName);
-  if (team) {
-    // Create channel
-    console.log('    Creating channel');
-    url = `https://graph.microsoft.com/v1.0/teams/${team.id}/channels`;
-    data = {
+  const team = teamsData.value.find((t) => t.displayName === teamName);
+  if (!team) {
+    console.warn(
+      `    Team "${teamName}" not found after creation, may need manual cleanup`,
+    );
+    return;
+  }
+
+  console.log("    Creating channel");
+  const createChannelUrl = `https://graph.microsoft.com/v1.0/teams/${team.id}/channels`;
+  const channelResponse = await apiRequest(
+    "POST",
+    createChannelUrl,
+    JSON.stringify({
       displayName: teamName,
       description: "Channel description",
-      membershipType: "standard"
-    };
-    const channelResponse = await apiRequest('POST', url, JSON.stringify(data), accessToken);
-    const channelData = await channelResponse.json() as ChannelData;
+      membershipType: "standard",
+    }),
+    accessToken,
+  );
+  const channelData = (await channelResponse.json()) as ChannelData;
 
-    // Delete channel
-    console.log('    Deleting channel');
-    url = `https://graph.microsoft.com/v1.0/teams/${team.id}/channels/${channelData.id}`;
-    await apiRequest('DELETE', url, null, accessToken);
-
-    // Delete team
-    console.log('    Deleting team');
-    url = `https://graph.microsoft.com/v1.0/groups/${team.id}`;
-    await apiRequest('DELETE', url, null, accessToken);
+  if (!channelData.id) {
+    console.warn("    Channel creation returned no ID, skipping channel delete");
+  } else {
+    console.log("    Deleting channel");
+    const deleteChannelUrl = `https://graph.microsoft.com/v1.0/teams/${team.id}/channels/${channelData.id}`;
+    await apiRequest("DELETE", deleteChannelUrl, null, accessToken);
   }
+
+  console.log("    Deleting team");
+  const deleteTeamUrl = `https://graph.microsoft.com/v1.0/groups/${team.id}`;
+  await apiRequest("DELETE", deleteTeamUrl, null, accessToken);
 }
 
 async function createAndDeleteTask(accessToken: string): Promise<void> {
   const taskName = `QVQ${Math.floor(Math.random() * 600)}`;
 
-  // Create task list
-  console.log('    Creating task list');
-  let url = 'https://graph.microsoft.com/v1.0/me/todo/lists';
-  let data = { displayName: taskName };
-  const listResponse = await apiRequest('POST', url, JSON.stringify(data), accessToken);
-  const listData = await listResponse.json() as ListData;
+  console.log("    Creating task list");
+  const createListUrl = "https://graph.microsoft.com/v1.0/me/todo/lists";
+  const listResponse = await apiRequest(
+    "POST",
+    createListUrl,
+    JSON.stringify({ displayName: taskName }),
+    accessToken,
+  );
+  const listData = (await listResponse.json()) as ListData;
+  if (!listData.id) {
+    throw new Error("Task list creation returned no ID");
+  }
 
-  // Create task
-  console.log('    Creating task');
-  url = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks`;
-  data = { title: taskName };
-  const taskResponse = await apiRequest('POST', url, JSON.stringify(data), accessToken);
-  const taskData = await taskResponse.json() as TaskData;
+  console.log("    Creating task");
+  const createTaskUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks`;
+  const taskResponse = await apiRequest(
+    "POST",
+    createTaskUrl,
+    JSON.stringify({ title: taskName }),
+    accessToken,
+  );
+  const taskData = (await taskResponse.json()) as TaskData;
+  if (!taskData.id) {
+    throw new Error("Task creation returned no ID");
+  }
 
-  // Delete task
-  console.log('    Deleting task');
-  url = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks/${taskData.id}`;
-  await apiRequest('DELETE', url, null, accessToken);
+  console.log("    Deleting task");
+  const deleteTaskUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks/${taskData.id}`;
+  await apiRequest("DELETE", deleteTaskUrl, null, accessToken);
 
-  // Delete task list
-  console.log('    Deleting task list');
-  url = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}`;
-  await apiRequest('DELETE', url, null, accessToken);
+  console.log("    Deleting task list");
+  const deleteListUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}`;
+  await apiRequest("DELETE", deleteListUrl, null, accessToken);
 }
 
 async function createAndDeleteNotebook(accessToken: string): Promise<void> {
   const notebookName = `QVQ${Math.floor(Math.random() * 600)}`;
 
-  // Create notebook
-  console.log('    Creating notebook');
-  let url = 'https://graph.microsoft.com/v1.0/me/onenote/notebooks';
-  let data = { displayName: notebookName };
-  const notebookResponse = await apiRequest('POST', url, JSON.stringify(data), accessToken);
-  const notebookData = await notebookResponse.json() as NotebookData;
+  console.log("    Creating notebook");
+  const createNotebookUrl =
+    "https://graph.microsoft.com/v1.0/me/onenote/notebooks";
+  const notebookResponse = await apiRequest(
+    "POST",
+    createNotebookUrl,
+    JSON.stringify({ displayName: notebookName }),
+    accessToken,
+  );
+  const notebookData = (await notebookResponse.json()) as NotebookData;
+  if (!notebookData.id) {
+    throw new Error("Notebook creation returned no ID");
+  }
 
-  // Create section
-  console.log('    Creating section');
-  url = `https://graph.microsoft.com/v1.0/me/onenote/notebooks/${notebookData.id}/sections`;
-  data = { displayName: notebookName };
-  await apiRequest('POST', url, JSON.stringify(data), accessToken);
+  console.log("    Creating section");
+  const createSectionUrl = `https://graph.microsoft.com/v1.0/me/onenote/notebooks/${notebookData.id}/sections`;
+  await apiRequest(
+    "POST",
+    createSectionUrl,
+    JSON.stringify({ displayName: notebookName }),
+    accessToken,
+  );
 
-  // Delete notebook
-  console.log('    Deleting notebook');
-  url = `https://graph.microsoft.com/v1.0/me/drive/root:/Notebooks/${notebookName}`;
-  await apiRequest('DELETE', url, null, accessToken);
+  console.log("    Deleting notebook");
+  const deleteNotebookUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${notebookData.id}`;
+  await apiRequest("DELETE", deleteNotebookUrl, null, accessToken);
 }
 
 async function apiRequest(
   method: string,
   url: string,
-  body: string | Buffer | null,
-  accessToken: string
+  body: string | Uint8Array | null,
+  accessToken: string,
 ): Promise<Response> {
+  const isBinary = body instanceof Uint8Array;
   const headers: HeadersInit = {
-    'Authorization': `Bearer ${accessToken}`,
-    'Content-Type': 'application/json'
+    Authorization: `Bearer ${accessToken}`,
+    "Content-Type": isBinary ? "application/octet-stream" : "application/json",
   };
 
-  const options: RequestInit = {
-    method,
-    headers
-  };
+  const options: RequestInit = { method, headers };
 
-  if (body && method !== 'GET') {
+  if (body && method !== "GET") {
     options.body = body;
   }
 
-  for (let retry = 0; retry < 4; retry++) {
+  for (let retry = 0; retry < MAX_RETRIES; retry++) {
     try {
       const response = await fetch(url, options);
 
       if (response.ok) {
-        console.log('        Operation successful');
+        console.log("        Operation successful");
         return response;
       }
 
-      if (retry === 3) {
-        console.log('        Operation failed');
+      // Consume body to release connection before retry or final throw
+      await response.body?.cancel();
+
+      if (retry === MAX_RETRIES - 1) {
         throw new Error(`API request failed: ${response.status}`);
       }
     } catch (error) {
-      if (retry === 3) {
+      if (retry === MAX_RETRIES - 1) {
         throw error;
       }
     }
 
-    // Wait before retry
-    await new Promise<void>(resolve => setTimeout(resolve, 1000));
+    await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
   }
 
-  throw new Error('API request failed after all retries');
-}
-
-async function getAccessToken(
-  refreshToken: string,
-  clientId: string,
-  clientSecret: string
-): Promise<TokenResponse> {
-  const tokenUrl = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
-
-  const params = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    client_id: clientId,
-    client_secret: clientSecret,
-    redirect_uri: 'https://login.microsoftonline.com/common/oauth2/nativeclient'
-  });
-
-  const response = await fetch(tokenUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: params.toString()
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to get access token');
-  }
-
-  return await response.json() as TokenResponse;
-}
-
-function randomDelay(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+  throw new Error("Unreachable: retry loop exited without return or throw");
 }
