@@ -1,5 +1,5 @@
-import { sendTelegramMessage } from "./telegram";
-import { getAccessToken, ACCESS_TOKEN_TTL } from "./auth";
+import { sendTelegramMessage } from "./telegram.ts";
+import { getAccessToken, persistTokens } from "./auth.ts";
 import type { WorkerEnv } from "./types";
 
 export async function updateToken(env: WorkerEnv): Promise<void> {
@@ -15,10 +15,7 @@ export async function updateToken(env: WorkerEnv): Promise<void> {
       env.CLIENT_SECRET,
     );
 
-    await env.E5_CONFIG.put("MS_TOKEN", newToken.refresh_token);
-    await env.E5_CONFIG.put("ACCESS_TOKEN", newToken.access_token, {
-      expirationTtl: ACCESS_TOKEN_TTL,
-    });
+    await persistTokens(env, newToken);
 
     console.log("Token updated successfully");
     await sendTelegramMessage(env, "✅ AutoApi 成功更新 token");

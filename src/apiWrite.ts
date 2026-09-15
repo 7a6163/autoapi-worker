@@ -1,6 +1,6 @@
-import { sendTelegramMessage } from "./telegram";
-import { ensureAccessToken } from "./auth";
-import { pickRandom } from "./utils";
+import { sendTelegramMessage } from "./telegram.ts";
+import { ensureAccessToken } from "./auth.ts";
+import { pickRandom } from "./utils.ts";
 import * as XLSX from "xlsx";
 import type { WorkerEnv } from "./types";
 
@@ -27,11 +27,6 @@ interface TaskData {
   title: string;
 }
 
-interface NotebookData {
-  id: string;
-  displayName: string;
-}
-
 interface ChannelData {
   id: string;
   displayName: string;
@@ -53,28 +48,28 @@ export async function runWriteAPIs(env: WorkerEnv): Promise<void> {
     console.log("Uploading file to OneDrive...");
     await uploadToOneDrive(filename, excelBuffer, accessToken);
 
-    const allOps = [1, 2, 3, 4] as const;
+    const allOps = [1, 2, 3] as const;
     const selectedOps = pickRandom(allOps, 2);
 
-    for (const op of selectedOps) {
-      switch (op) {
-        case 1:
-          console.log("Excel file operation...");
-          await modifyExcelFile(filename, accessToken);
-          break;
-        case 2:
-          console.log("Teams operation...");
-          await createAndDeleteTeam(accessToken);
-          break;
-        case 3:
-          console.log("Tasks operation...");
-          await createAndDeleteTask(accessToken);
-          break;
-        case 4:
-          console.log("OneNote operation...");
-          await createAndDeleteNotebook(accessToken);
-          break;
+    try {
+      for (const op of selectedOps) {
+        switch (op) {
+          case 1:
+            console.log("Excel file operation...");
+            await modifyExcelFile(filename, accessToken);
+            break;
+          case 2:
+            console.log("Teams operation...");
+            await createAndDeleteTeam(accessToken);
+            break;
+          case 3:
+            console.log("Tasks operation...");
+            await createAndDeleteTask(accessToken);
+            break;
+        }
       }
+    } finally {
+      await deleteFromOneDrive(filename, accessToken);
     }
 
     console.log("Write APIs completed successfully");
@@ -113,6 +108,20 @@ async function uploadToOneDrive(
   const url = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}:/content`;
   await apiRequest("PUT", url, data, accessToken);
   console.log("    File uploaded successfully");
+}
+
+// Best-effort: never mask the original failure when called from finally.
+async function deleteFromOneDrive(
+  filename: string,
+  accessToken: string,
+): Promise<void> {
+  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}`;
+  try {
+    await apiRequest("DELETE", url, null, accessToken);
+    console.log("    File deleted successfully");
+  } catch (error) {
+    console.error("    File cleanup failed:", error);
+  }
 }
 
 async function modifyExcelFile(
@@ -260,37 +269,6 @@ async function createAndDeleteTask(accessToken: string): Promise<void> {
   console.log("    Deleting task list");
   const deleteListUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}`;
   await apiRequest("DELETE", deleteListUrl, null, accessToken);
-}
-
-async function createAndDeleteNotebook(accessToken: string): Promise<void> {
-  const notebookName = `QVQ${Math.floor(Math.random() * 600)}`;
-
-  console.log("    Creating notebook");
-  const createNotebookUrl =
-    "https://graph.microsoft.com/v1.0/me/onenote/notebooks";
-  const notebookResponse = await apiRequest(
-    "POST",
-    createNotebookUrl,
-    JSON.stringify({ displayName: notebookName }),
-    accessToken,
-  );
-  const notebookData = (await notebookResponse.json()) as NotebookData;
-  if (!notebookData.id) {
-    throw new Error("Notebook creation returned no ID");
-  }
-
-  console.log("    Creating section");
-  const createSectionUrl = `https://graph.microsoft.com/v1.0/me/onenote/notebooks/${notebookData.id}/sections`;
-  await apiRequest(
-    "POST",
-    createSectionUrl,
-    JSON.stringify({ displayName: notebookName }),
-    accessToken,
-  );
-
-  console.log("    Deleting notebook");
-  const deleteNotebookUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${notebookData.id}`;
-  await apiRequest("DELETE", deleteNotebookUrl, null, accessToken);
 }
 
 async function apiRequest(

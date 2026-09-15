@@ -1,6 +1,6 @@
-import { sendTelegramMessage } from "./telegram";
-import { ensureAccessToken } from "./auth";
-import { shuffledCopy, pickRandom } from "./utils";
+import { sendTelegramMessage } from "./telegram.ts";
+import { ensureAccessToken } from "./auth.ts";
+import { shuffledCopy, pickRandom } from "./utils.ts";
 import type { WorkerEnv } from "./types";
 
 const API_LIST: readonly string[] = [

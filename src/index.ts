@@ -1,9 +1,9 @@
 import { Hono } from "hono";
-import { updateToken } from "./updateToken";
-import { runReadAPIs } from "./apiRead";
-import { runWriteAPIs } from "./apiWrite";
-import { sendTelegramMessage } from "./telegram";
-import type { WorkerEnv, ScheduledEvent, ExecutionContext } from "./types";
+import { updateToken } from "./updateToken.ts";
+import { runReadAPIs } from "./apiRead.ts";
+import { runWriteAPIs } from "./apiWrite.ts";
+import { sendTelegramMessage } from "./telegram.ts";
+import type { WorkerEnv, ScheduledEvent } from "./types";
 
 type Bindings = WorkerEnv;
 
@@ -77,31 +77,27 @@ app.onError((_err, c) => {
   return c.json({ error: "Internal server error" }, 500);
 });
 
-function scheduled(
-  event: ScheduledEvent,
-  env: WorkerEnv,
-  ctx: ExecutionContext,
-): void {
-  const task = async () => {
-    const cron = event.cron;
-    try {
-      if (cron === "10 10 * * 1,4,6") {
-        console.log("Starting token update...");
-        await updateToken(env);
-      } else if (cron === "12 */6 * * 1-5") {
-        console.log("Starting read API calls...");
-        await runReadAPIs(env);
-      } else if (cron === "12 23 * * *") {
-        console.log("Starting write API calls...");
-        await runWriteAPIs(env);
-      }
-    } catch (error) {
-      console.error("Scheduled task failed:", error);
-      await sendTelegramMessage(env, "❌ AutoApi Worker 執行失敗");
-    }
-  };
+/** Keys must stay identical to `triggers.crons` in wrangler.jsonc — see worker.test.ts. */
+export const CRON_TASKS: Record<string, (env: WorkerEnv) => Promise<void>> = {
+  "10 10 * * 1,4,6": updateToken,
+  "12 */6 * * 1-5": runReadAPIs,
+  "12 23 * * *": runWriteAPIs,
+};
 
-  ctx.waitUntil(task());
+async function scheduled(event: ScheduledEvent, env: WorkerEnv): Promise<void> {
+  const task = CRON_TASKS[event.cron];
+  if (!task) {
+    throw new Error(`No task registered for cron "${event.cron}"`);
+  }
+
+  try {
+    await task(env);
+  } catch (error) {
+    console.error("Scheduled task failed:", error);
+    await sendTelegramMessage(env, "❌ AutoApi Worker 執行失敗");
+    // Rethrow so Cloudflare records the invocation as failed instead of green.
+    throw error;
+  }
 }
 
 export default {

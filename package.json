@@ -7,13 +7,16 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "wrangler types && tsc --noEmit",
+    "test": "node --test \"src/**/*.test.ts\""
   },
   "dependencies": {
     "xlsx": "npm:@e965/xlsx@0.20.3",
     "hono": "^4.6.3"
   },
   "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2",
     "wrangler": "^4.28.0"
   }
 }

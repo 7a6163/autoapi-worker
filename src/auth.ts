@@ -1,3 +1,4 @@
+import { sendTelegramMessage } from "./telegram.ts";
 import type { WorkerEnv } from "./types";
 
 export interface TokenResponse {
@@ -65,6 +66,32 @@ export async function getAccessToken(
   throw new Error("Unreachable: retry loop exited without return or throw");
 }
 
+/**
+ * Microsoft invalidates the old refresh token the moment it issues a new one,
+ * so a failed MS_TOKEN write leaves KV holding a dead token and every job
+ * failing until someone re-authorises by hand. KV has no transactions, so the
+ * best we can do is shout.
+ */
+export async function persistTokens(
+  env: WorkerEnv,
+  tokens: TokenResponse,
+): Promise<void> {
+  try {
+    await env.E5_CONFIG.put("MS_TOKEN", tokens.refresh_token);
+  } catch (error) {
+    console.error("Failed to persist refresh token:", error);
+    await sendTelegramMessage(
+      env,
+      "🚨 AutoApi 無法寫回 refresh token，請立即重新授權",
+    );
+    throw error;
+  }
+
+  await env.E5_CONFIG.put("ACCESS_TOKEN", tokens.access_token, {
+    expirationTtl: ACCESS_TOKEN_TTL,
+  });
+}
+
 export async function ensureAccessToken(env: WorkerEnv): Promise<string> {
   const cached = await env.E5_CONFIG.get("ACCESS_TOKEN");
   if (cached) {
@@ -82,10 +109,7 @@ export async function ensureAccessToken(env: WorkerEnv): Promise<string> {
     env.CLIENT_SECRET,
   );
 
-  await env.E5_CONFIG.put("MS_TOKEN", tokens.refresh_token);
-  await env.E5_CONFIG.put("ACCESS_TOKEN", tokens.access_token, {
-    expirationTtl: ACCESS_TOKEN_TTL,
-  });
+  await persistTokens(env, tokens);
 
   return tokens.access_token;
 }
