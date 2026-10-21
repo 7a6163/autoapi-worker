@@ -93,7 +93,7 @@ async function callGraphAPI(
     "Content-Type": "application/json",
   };
 
-  for (let retry = 0; retry < MAX_RETRIES; retry++) {
+  for (let retry = 0; ; retry++) {
     try {
       const response = await fetch(url, { headers });
 
@@ -123,6 +123,4 @@ async function callGraphAPI(
 
     await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
   }
-
-  return false;
 }

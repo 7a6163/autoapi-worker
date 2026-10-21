@@ -8,7 +8,3 @@ export interface WorkerEnv {
   ADMIN_TOKEN?: string;
 }
 
-export interface ScheduledEvent {
-  cron: string;
-  scheduledTime: number;
-}

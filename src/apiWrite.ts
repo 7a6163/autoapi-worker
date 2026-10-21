@@ -4,23 +4,9 @@ import { pickRandom, isRetryableStatus } from "./utils.ts";
 import * as XLSX from "xlsx";
 import type { WorkerEnv } from "./types";
 
-interface TableData {
-  id: string;
-}
-
-interface ListData {
-  id: string;
-  displayName: string;
-}
-
-interface TaskData {
-  id: string;
-  title: string;
-}
-
-interface ChannelData {
-  id: string;
-  displayName: string;
+// Graph create responses: only the id is ever read.
+interface CreatedResource {
+  id?: string;
 }
 
 const MAX_RETRIES = 2;
@@ -139,7 +125,7 @@ async function modifyExcelFile(
     accessToken,
   );
 
-  const tableData = (await tableResponse.json()) as TableData;
+  const tableData = (await tableResponse.json()) as CreatedResource;
   if (!tableData.id) {
     throw new Error("Table creation returned no ID");
   }
@@ -206,7 +192,7 @@ async function createAndDeleteTeam(accessToken: string): Promise<void> {
       }),
       accessToken,
     );
-    const channelData = (await channelResponse.json()) as ChannelData;
+    const channelData = (await channelResponse.json()) as CreatedResource;
 
     if (!channelData.id) {
       console.warn("    Channel creation returned no ID, skipping channel delete");
@@ -235,7 +221,7 @@ async function createAndDeleteTask(accessToken: string): Promise<void> {
     JSON.stringify({ displayName: taskName }),
     accessToken,
   );
-  const listData = (await listResponse.json()) as ListData;
+  const listData = (await listResponse.json()) as CreatedResource;
   if (!listData.id) {
     throw new Error("Task list creation returned no ID");
   }
@@ -249,7 +235,7 @@ async function createAndDeleteTask(accessToken: string): Promise<void> {
       JSON.stringify({ title: taskName }),
       accessToken,
     );
-    const taskData = (await taskResponse.json()) as TaskData;
+    const taskData = (await taskResponse.json()) as CreatedResource;
     if (!taskData.id) {
       throw new Error("Task creation returned no ID");
     }

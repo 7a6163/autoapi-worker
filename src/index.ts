@@ -5,7 +5,7 @@ import { timingSafeEqual } from "hono/utils/buffer";
 import { updateToken } from "./updateToken.ts";
 import { runReadAPIs } from "./apiRead.ts";
 import { runWriteAPIs } from "./apiWrite.ts";
-import type { WorkerEnv, ScheduledEvent } from "./types";
+import type { WorkerEnv } from "./types";
 
 type Bindings = WorkerEnv;
 
@@ -97,7 +97,10 @@ export const CRON_TASKS: Record<string, (env: WorkerEnv) => Promise<void>> = {
   "12 23 * * *": runWriteAPIs,
 };
 
-async function scheduled(event: ScheduledEvent, env: WorkerEnv): Promise<void> {
+async function scheduled(
+  event: Pick<ScheduledController, "cron">,
+  env: WorkerEnv,
+): Promise<void> {
   const task = CRON_TASKS[event.cron];
   if (!task) {
     throw new Error(`No task registered for cron "${event.cron}"`);

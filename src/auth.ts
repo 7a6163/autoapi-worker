@@ -2,11 +2,10 @@ import { sendTelegramMessage } from "./telegram.ts";
 import { isRetryableStatus } from "./utils.ts";
 import type { WorkerEnv } from "./types";
 
-export interface TokenResponse {
+interface TokenResponse {
   access_token: string;
   refresh_token: string;
   expires_in?: number;
-  token_type?: string;
 }
 
 const TOKEN_URL =
@@ -16,9 +15,9 @@ const REDIRECT_URI =
 const MAX_RETRIES = 4;
 const RETRY_DELAY_MS = 1000;
 // Fallback when Microsoft omits expires_in.
-export const ACCESS_TOKEN_TTL = 3600;
+const ACCESS_TOKEN_TTL = 3600;
 // Evict the cached token this long before it really expires.
-export const ACCESS_TOKEN_EXPIRY_MARGIN = 300;
+const ACCESS_TOKEN_EXPIRY_MARGIN = 300;
 // Cloudflare KV rejects an expirationTtl below 60 seconds.
 const KV_MIN_TTL = 60;
 
@@ -35,7 +34,7 @@ export async function getAccessToken(
     redirect_uri: REDIRECT_URI,
   });
 
-  for (let retry = 0; retry < MAX_RETRIES; retry++) {
+  for (let retry = 0; ; retry++) {
     const response = await fetch(TOKEN_URL, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -74,8 +73,6 @@ export async function getAccessToken(
 
     await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
   }
-
-  throw new Error("Unreachable: retry loop exited without return or throw");
 }
 
 /**
