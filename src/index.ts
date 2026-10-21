@@ -1,19 +1,29 @@
 import { Hono } from "hono";
+import { bearerAuth } from "hono/bearer-auth";
+import { HTTPException } from "hono/http-exception";
+import { timingSafeEqual } from "hono/utils/buffer";
 import { updateToken } from "./updateToken.ts";
 import { runReadAPIs } from "./apiRead.ts";
 import { runWriteAPIs } from "./apiWrite.ts";
-import { sendTelegramMessage } from "./telegram.ts";
 import type { WorkerEnv, ScheduledEvent } from "./types";
 
 type Bindings = WorkerEnv;
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+// Workers are public on *.workers.dev; fail closed when ADMIN_TOKEN is unset.
+const requireAdmin = bearerAuth({
+  verifyToken: async (token, c) => {
+    const expected = (c.env as Bindings).ADMIN_TOKEN;
+    return !!expected && (await timingSafeEqual(token, expected));
+  },
+});
+
 app.get("/", (c) => {
   return c.text("AutoApi E5 Worker is running with Hono!");
 });
 
-app.post("/update-token", async (c) => {
+app.post("/update-token", requireAdmin, async (c) => {
   try {
     await updateToken(c.env);
     return c.json({ success: true, message: "Token updated successfully" });
@@ -22,7 +32,7 @@ app.post("/update-token", async (c) => {
   }
 });
 
-app.post("/run-read", async (c) => {
+app.post("/run-read", requireAdmin, async (c) => {
   try {
     await runReadAPIs(c.env);
     return c.json({
@@ -34,7 +44,7 @@ app.post("/run-read", async (c) => {
   }
 });
 
-app.post("/run-write", async (c) => {
+app.post("/run-write", requireAdmin, async (c) => {
   try {
     await runWriteAPIs(c.env);
     return c.json({
@@ -73,6 +83,9 @@ app.notFound((c) => {
 });
 
 app.onError((_err, c) => {
+  if (_err instanceof HTTPException) {
+    return _err.getResponse();
+  }
   console.error("Unhandled error:", _err);
   return c.json({ error: "Internal server error" }, 500);
 });
@@ -90,14 +103,9 @@ async function scheduled(event: ScheduledEvent, env: WorkerEnv): Promise<void> {
     throw new Error(`No task registered for cron "${event.cron}"`);
   }
 
-  try {
-    await task(env);
-  } catch (error) {
-    console.error("Scheduled task failed:", error);
-    await sendTelegramMessage(env, "❌ AutoApi Worker 執行失敗");
-    // Rethrow so Cloudflare records the invocation as failed instead of green.
-    throw error;
-  }
+  // Each task sends its own Telegram failure alert and rethrows, so Cloudflare
+  // records the invocation as failed; alerting here too would double-notify.
+  await task(env);
 }
 
 export default {

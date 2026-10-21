@@ -1,4 +1,5 @@
 import { sendTelegramMessage } from "./telegram.ts";
+import { isRetryableStatus } from "./utils.ts";
 import type { WorkerEnv } from "./types";
 
 export interface TokenResponse {
@@ -14,7 +15,12 @@ const REDIRECT_URI =
   "https://login.microsoftonline.com/common/oauth2/nativeclient";
 const MAX_RETRIES = 4;
 const RETRY_DELAY_MS = 1000;
+// Fallback when Microsoft omits expires_in.
 export const ACCESS_TOKEN_TTL = 3600;
+// Evict the cached token this long before it really expires.
+export const ACCESS_TOKEN_EXPIRY_MARGIN = 300;
+// Cloudflare KV rejects an expirationTtl below 60 seconds.
+const KV_MIN_TTL = 60;
 
 export async function getAccessToken(
   refreshToken: string,
@@ -51,12 +57,18 @@ export async function getAccessToken(
       return {
         access_token: data.access_token,
         refresh_token: data.refresh_token,
+        ...(typeof data.expires_in === "number"
+          ? { expires_in: data.expires_in }
+          : {}),
       };
     }
 
-    if (retry === MAX_RETRIES - 1) {
+    await response.body?.cancel();
+
+    // Refreshing is safe to replay; 4xx (e.g. invalid_grant) will never succeed on retry.
+    if (retry === MAX_RETRIES - 1 || !isRetryableStatus(response.status, true)) {
       throw new Error(
-        `Failed to obtain token after ${MAX_RETRIES} attempts (status: ${response.status})`,
+        `Failed to obtain token on attempt ${retry + 1}/${MAX_RETRIES} (status: ${response.status})`,
       );
     }
 
@@ -87,8 +99,14 @@ export async function persistTokens(
     throw error;
   }
 
+  const ttl =
+    (tokens.expires_in ?? ACCESS_TOKEN_TTL) - ACCESS_TOKEN_EXPIRY_MARGIN;
+  // Too short-lived to cache safely; the next job just refreshes again.
+  if (ttl < KV_MIN_TTL) {
+    return;
+  }
   await env.E5_CONFIG.put("ACCESS_TOKEN", tokens.access_token, {
-    expirationTtl: ACCESS_TOKEN_TTL,
+    expirationTtl: ttl,
   });
 }
 

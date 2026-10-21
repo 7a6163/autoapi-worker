@@ -39,6 +39,7 @@
    * Set them via Wrangler CLI:
    *   wrangler secret put CLIENT_ID
    *   wrangler secret put CLIENT_SECRET
+   *   wrangler secret put ADMIN_TOKEN
    *   wrangler secret put TELEGRAM_BOT_TOKEN
    *   wrangler secret put CHAT_ID
    */

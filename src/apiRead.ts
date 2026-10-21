@@ -1,6 +1,6 @@
 import { sendTelegramMessage } from "./telegram.ts";
 import { ensureAccessToken } from "./auth.ts";
-import { shuffledCopy, pickRandom } from "./utils.ts";
+import { shuffledCopy, pickRandom, isRetryableStatus } from "./utils.ts";
 import type { WorkerEnv } from "./types";
 
 const API_LIST: readonly string[] = [
@@ -105,9 +105,9 @@ async function callGraphAPI(
 
       await response.body?.cancel();
 
-      if (retry === MAX_RETRIES - 1) {
+      if (retry === MAX_RETRIES - 1 || !isRetryableStatus(response.status, true)) {
         console.error(
-          `    API ${apiNumber}: failed after ${MAX_RETRIES} attempts (status: ${response.status})`,
+          `    API ${apiNumber}: failed on attempt ${retry + 1} (status: ${response.status})`,
         );
         return false;
       }

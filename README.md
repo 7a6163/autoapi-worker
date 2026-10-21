@@ -4,7 +4,7 @@ E5 auto-renewal application ported to Cloudflare Workers platform.
 
 ## Features
 
-- ✅ Generate Excel files in memory using ExcelJS npm package
+- ✅ Generate Excel files in memory using SheetJS (`xlsx`)
 - ✅ Store tokens using KV Storage (replaces .env file)
 - ✅ Support for Cron Triggers for scheduled execution
 - ✅ All API functionalities fully ported
@@ -14,7 +14,6 @@ E5 auto-renewal application ported to Cloudflare Workers platform.
 ### 1. Install Dependencies
 
 ```bash
-cd worker
 npm install
 ```
 
@@ -34,6 +33,7 @@ Use Cloudflare Secrets instead of plain env vars:
 ```bash
 wrangler secret put CLIENT_ID            # Azure Application ID
 wrangler secret put CLIENT_SECRET        # Azure Application Secret
+wrangler secret put ADMIN_TOKEN          # required to call the trigger endpoints
 wrangler secret put TELEGRAM_BOT_TOKEN   # optional
 wrangler secret put CHAT_ID              # optional
 ```
@@ -57,10 +57,15 @@ npm run deploy
 
 ## Test Endpoints
 
-After deployment, manually trigger via these endpoints:
-- `/update-token` - Update token
-- `/run-read` - Execute read APIs
-- `/run-write` - Execute write APIs
+After deployment, manually trigger via these endpoints. The POST endpoints require `Authorization: Bearer <ADMIN_TOKEN>` and return 401 if `ADMIN_TOKEN` is not set:
+- `POST /update-token` - Update token
+- `POST /run-read` - Execute read APIs
+- `POST /run-write` - Execute write APIs
+- `GET /status` - Check whether tokens are present in KV
+
+```bash
+curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" https://<your-worker>.workers.dev/run-read
+```
 
 ## Cron Schedule
 
@@ -76,8 +81,8 @@ Configured schedule (UTC time):
 - Stores token in .env file
 - Uses crontab for scheduling
 
-### Worker Edition (JavaScript)
-- Uses ExcelJS npm package
+### Worker Edition (TypeScript)
+- Uses SheetJS (`xlsx`)
 - Stores token in KV Storage
 - Uses Cron Triggers
 
