@@ -31,3 +31,5 @@ worker/
 *.tsbuildinfo
 *.d.ts
 
+# Test coverage output
+lcov.info
