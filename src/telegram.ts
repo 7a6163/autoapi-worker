@@ -30,7 +30,10 @@ export async function sendTelegramMessage(
     );
 
     if (!response.ok) {
-      console.error("Failed to send Telegram message, status:", response.status);
+      console.error(
+        "Failed to send Telegram message, status:",
+        response.status,
+      );
     }
   } catch (error) {
     console.error("Error sending Telegram message:", error);

@@ -52,10 +52,7 @@ app.post("/run-write", requireAdmin, async (c) => {
       message: "Write APIs executed successfully",
     });
   } catch {
-    return c.json(
-      { success: false, error: "Write API execution failed" },
-      500,
-    );
+    return c.json({ success: false, error: "Write API execution failed" }, 500);
   }
 });
 

@@ -7,4 +7,3 @@ export interface WorkerEnv {
   TOPIC_ID?: string;
   ADMIN_TOKEN?: string;
 }
-

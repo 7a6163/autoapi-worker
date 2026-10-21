@@ -139,7 +139,9 @@ test("runWriteAPIs deletes the team by its Content-Location id when channel crea
 
   await assert.rejects(runWriteAPIs(env));
 
-  assert.ok(calls.includes("DELETE https://graph.microsoft.com/v1.0/groups/team-1"));
+  assert.ok(
+    calls.includes("DELETE https://graph.microsoft.com/v1.0/groups/team-1"),
+  );
   assert.ok(!calls.some((c) => c.includes("joinedTeams")));
 });
 
@@ -150,7 +152,11 @@ test("runWriteAPIs deletes the task list when task creation fails", async (t) =>
 
   await assert.rejects(runWriteAPIs(env));
 
-  assert.ok(calls.includes("DELETE https://graph.microsoft.com/v1.0/me/todo/lists/list-1"));
+  assert.ok(
+    calls.includes(
+      "DELETE https://graph.microsoft.com/v1.0/me/todo/lists/list-1",
+    ),
+  );
 });
 
 test("runWriteAPIs runs task and team ops end to end and cleans up everything", async (t) => {
@@ -166,7 +172,8 @@ test("runWriteAPIs runs task and team ops end to end and cleans up everything", 
 
 test("trigger endpoints reject callers without the admin token", async () => {
   const { env } = fakeEnv({ MS_TOKEN: "rt" });
-  globalThis.fetch = (() => assert.fail("should not reach Microsoft")) as typeof fetch;
+  globalThis.fetch = (() =>
+    assert.fail("should not reach Microsoft")) as typeof fetch;
   const post = (path: string, token?: string) =>
     worker.fetch(
       new Request(`https://w.example${path}`, {
@@ -248,7 +255,9 @@ test("getAccessToken gives up immediately on invalid_grant", async () => {
   let calls = 0;
   globalThis.fetch = (async () => {
     calls++;
-    return new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 });
+    return new Response(JSON.stringify({ error: "invalid_grant" }), {
+      status: 400,
+    });
   }) as typeof fetch;
 
   await assert.rejects(ensureAccessToken(env), /status: 400/);
@@ -258,18 +267,29 @@ test("getAccessToken gives up immediately on invalid_grant", async () => {
 test("persistTokens caches the access token until shortly before expires_in", async () => {
   const { env, kv, ttls } = fakeEnv();
 
-  await persistTokens(env, { access_token: "at", refresh_token: "rt", expires_in: 1800 });
+  await persistTokens(env, {
+    access_token: "at",
+    refresh_token: "rt",
+    expires_in: 1800,
+  });
   assert.equal(ttls.get("ACCESS_TOKEN"), 1500);
 
   kv.delete("ACCESS_TOKEN");
-  await persistTokens(env, { access_token: "at2", refresh_token: "rt2", expires_in: 200 });
+  await persistTokens(env, {
+    access_token: "at2",
+    refresh_token: "rt2",
+    expires_in: 200,
+  });
   assert.equal(kv.get("ACCESS_TOKEN"), undefined); // too short to cache
   assert.equal(kv.get("MS_TOKEN"), "rt2");
 });
 
 test("a failing scheduled job sends exactly one Telegram alert", async (t) => {
   forceTaskAndTeam(t);
-  const { env } = fakeEnv({ ACCESS_TOKEN: "at", MS_TOKEN: "rt" }, { telegram: true });
+  const { env } = fakeEnv(
+    { ACCESS_TOKEN: "at", MS_TOKEN: "rt" },
+    { telegram: true },
+  );
   const alerts: string[] = [];
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     if (String(input).includes("api.telegram.org")) {
