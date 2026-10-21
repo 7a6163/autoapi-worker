@@ -13,6 +13,7 @@ npm run tail        # live logs
 npm run typecheck   # wrangler types && tsc --noEmit
 npm test            # node --test "src/**/*.test.ts"
 node --test --test-name-pattern="CRON_TASKS" src/worker.test.ts   # single test
+npm run test:coverage   # tests + lcov.info (what CI uploads to Codecov)
 ```
 
 Tests use Node's built-in runner with native TypeScript stripping (no vitest/jest, no build step). That is why relative imports carry the `.ts` extension — keep it on value imports, or Node can't resolve them. Type-only imports (`import type ... from "./types"`) are erased and may omit it.
@@ -28,6 +29,9 @@ Tests use Node's built-in runner with native TypeScript stripping (no vitest/jes
 - Telegram messages are in Traditional Chinese; keep that style.
 
 ## Testing pattern
+
+CI (`.github/workflows/ci.yml`) runs typecheck + `test:coverage` on Node 24 for pushes to main and PRs, uploading to Codecov via OIDC.
+
 
 `src/worker.test.ts` fakes `env` with an in-memory `Map` KV (`fakeEnv`, supports `failPutOn` to simulate KV write failure) and stubs `globalThis.fetch` per test (restored in `afterEach`). Write-op tests use `fakeGraph` and `forceTaskAndTeam` (mocks `Math.random` to pick the Task and Team ops, and makes `setTimeout` fire immediately). No network or wrangler needed.
 

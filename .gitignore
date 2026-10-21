@@ -2,9 +2,7 @@ node_modules
 # Ignore node_modules folder
 node_modules/
 
-# Ignore npm or Yarn lock files if not using them
-# (Keep one if you're using it to lock dependencies)
-package-lock.json
+# npm's package-lock.json is committed; ignore other package managers' lockfiles
 yarn.lock
 pnpm-lock.yaml
 
@@ -31,3 +29,5 @@ worker/
 *.tsbuildinfo
 *.d.ts
 
+# Test coverage output
+lcov.info

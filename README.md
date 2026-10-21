@@ -1,5 +1,8 @@
 # AutoApi E5 - Cloudflare Worker Edition
 
+[![CI](https://github.com/7a6163/autoapi-worker/actions/workflows/ci.yml/badge.svg)](https://github.com/7a6163/autoapi-worker/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/7a6163/autoapi-worker/branch/main/graph/badge.svg)](https://codecov.io/gh/7a6163/autoapi-worker)
+
 E5 auto-renewal application ported to Cloudflare Workers platform.
 
 ## Features
