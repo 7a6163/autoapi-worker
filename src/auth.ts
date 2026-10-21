@@ -8,8 +8,7 @@ interface TokenResponse {
   expires_in?: number;
 }
 
-const TOKEN_URL =
-  "https://login.microsoftonline.com/common/oauth2/v2.0/token";
+const TOKEN_URL = "https://login.microsoftonline.com/common/oauth2/v2.0/token";
 const REDIRECT_URI =
   "https://login.microsoftonline.com/common/oauth2/nativeclient";
 const MAX_RETRIES = 4;
@@ -65,7 +64,10 @@ export async function getAccessToken(
     await response.body?.cancel();
 
     // Refreshing is safe to replay; 4xx (e.g. invalid_grant) will never succeed on retry.
-    if (retry === MAX_RETRIES - 1 || !isRetryableStatus(response.status, true)) {
+    if (
+      retry === MAX_RETRIES - 1 ||
+      !isRetryableStatus(response.status, true)
+    ) {
       throw new Error(
         `Failed to obtain token on attempt ${retry + 1}/${MAX_RETRIES} (status: ${response.status})`,
       );

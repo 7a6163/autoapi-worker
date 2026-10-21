@@ -195,7 +195,9 @@ async function createAndDeleteTeam(accessToken: string): Promise<void> {
     const channelData = (await channelResponse.json()) as CreatedResource;
 
     if (!channelData.id) {
-      console.warn("    Channel creation returned no ID, skipping channel delete");
+      console.warn(
+        "    Channel creation returned no ID, skipping channel delete",
+      );
     } else {
       console.log("    Deleting channel");
       const deleteChannelUrl = `https://graph.microsoft.com/v1.0/teams/${teamId}/channels/${channelData.id}`;

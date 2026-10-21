@@ -11,6 +11,7 @@ npm run dev         # wrangler dev (local; secrets via .dev.vars)
 npm run deploy      # wrangler deploy
 npm run tail        # live logs
 npm run typecheck   # wrangler types && tsc --noEmit
+npm run format      # oxfmt src (printWidth 80, .oxfmtrc.json); CI runs format:check
 npm test            # node --test "src/**/*.test.ts"
 node --test --test-name-pattern="CRON_TASKS" src/worker.test.ts   # single test
 npm run test:coverage   # tests + lcov.info (what CI uploads to Codecov)

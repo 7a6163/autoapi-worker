@@ -36,8 +36,8 @@ const API_LIST: readonly string[] = [
 
 const FIXED_API_INDICES: readonly number[] = [0, 1, 5, 6, 20, 21];
 const EXTRA_API_INDICES: readonly number[] = [
-  2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 24, 25,
-  26, 27,
+  2, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 24, 25, 26,
+  27,
 ];
 const EXTRA_PICK_COUNT = 6;
 const MAX_RETRIES = 2;
@@ -48,7 +48,10 @@ export async function runReadAPIs(env: WorkerEnv): Promise<void> {
     const accessToken = await ensureAccessToken(env);
 
     const selectedExtras = pickRandom(EXTRA_API_INDICES, EXTRA_PICK_COUNT);
-    const finalApiList = shuffledCopy([...FIXED_API_INDICES, ...selectedExtras]);
+    const finalApiList = shuffledCopy([
+      ...FIXED_API_INDICES,
+      ...selectedExtras,
+    ]);
 
     console.log(`Calling ${finalApiList.length} APIs...`);
 
@@ -105,7 +108,10 @@ async function callGraphAPI(
 
       await response.body?.cancel();
 
-      if (retry === MAX_RETRIES - 1 || !isRetryableStatus(response.status, true)) {
+      if (
+        retry === MAX_RETRIES - 1 ||
+        !isRetryableStatus(response.status, true)
+      ) {
         console.error(
           `    API ${apiNumber}: failed on attempt ${retry + 1} (status: ${response.status})`,
         );
