@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "E5 Auto Renewal on Cloudflare Workers",
   "main": "src/index.ts",
+  "license": "MIT",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",

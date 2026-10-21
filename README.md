@@ -99,3 +99,7 @@ View logs using Wrangler:
 ```bash
 npm run tail
 ```
+
+## License
+
+[MIT](LICENSE)
