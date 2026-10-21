@@ -279,7 +279,7 @@ test("a failing scheduled job sends exactly one Telegram alert", async (t) => {
     return new Response("nope", { status: 500 });
   }) as typeof fetch;
 
-  await assert.rejects(worker.scheduled({ cron: "12 23 * * *", scheduledTime: 0 }, env));
+  await assert.rejects(worker.scheduled({ cron: "12 23 * * *" }, env));
 
   assert.deepEqual(alerts, ["❌ AutoApi 執行寫入型 API 失敗"]);
 });
@@ -366,7 +366,7 @@ test("scheduled rejects on an unknown cron instead of silently doing nothing", a
   const { env } = fakeEnv();
 
   await assert.rejects(
-    worker.scheduled({ cron: "0 0 * * *", scheduledTime: 0 }, env),
+    worker.scheduled({ cron: "0 0 * * *" }, env),
     /No task registered/,
   );
 });
@@ -380,7 +380,7 @@ test("scheduled surfaces task failures to Cloudflare", async () => {
 
   try {
     await assert.rejects(
-      worker.scheduled({ cron: "12 23 * * *", scheduledTime: 0 }, env),
+      worker.scheduled({ cron: "12 23 * * *" }, env),
       /boom/,
     );
   } finally {
