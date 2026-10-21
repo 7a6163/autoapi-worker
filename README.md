@@ -36,6 +36,7 @@ wrangler secret put CLIENT_SECRET        # Azure Application Secret
 wrangler secret put ADMIN_TOKEN          # required to call the trigger endpoints
 wrangler secret put TELEGRAM_BOT_TOKEN   # optional
 wrangler secret put CHAT_ID              # optional
+wrangler secret put TOPIC_ID             # optional, forum topic (message_thread_id) in a supergroup
 ```
 
 Notes:

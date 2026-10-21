@@ -9,6 +9,12 @@ export async function sendTelegramMessage(
     return;
   }
 
+  // Forum topic in a supergroup; ignore a malformed value rather than lose the alert.
+  const topicId = env.TOPIC_ID ? Number(env.TOPIC_ID) : undefined;
+  if (topicId !== undefined && !Number.isInteger(topicId)) {
+    console.error(`Ignoring invalid TOPIC_ID "${env.TOPIC_ID}"`);
+  }
+
   try {
     const response = await fetch(
       `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
@@ -18,6 +24,7 @@ export async function sendTelegramMessage(
         body: JSON.stringify({
           chat_id: env.CHAT_ID,
           text: message,
+          ...(Number.isInteger(topicId) ? { message_thread_id: topicId } : {}),
         }),
       },
     );

@@ -42,6 +42,7 @@
    *   wrangler secret put ADMIN_TOKEN
    *   wrangler secret put TELEGRAM_BOT_TOKEN
    *   wrangler secret put CHAT_ID
+   *   wrangler secret put TOPIC_ID   (optional, Telegram forum topic)
    */
   // "vars": {
   // 	"CLIENT_ID": "",

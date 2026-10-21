@@ -33,4 +33,4 @@ Tests use Node's built-in runner with native TypeScript stripping (no vitest/jes
 
 ## Config
 
-Secrets: `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_TOKEN` (required), `TELEGRAM_BOT_TOKEN`, `CHAT_ID` (optional) via `wrangler secret put`. The KV namespace id in `wrangler.jsonc` is a placeholder; the initial refresh token is seeded with `wrangler kv key put ... "MS_TOKEN" ... --remote`. Workers have a 30s execution limit, so jobs cannot sleep/delay long.
+Secrets: `CLIENT_ID`, `CLIENT_SECRET`, `ADMIN_TOKEN` (required), `TELEGRAM_BOT_TOKEN`, `CHAT_ID`, `TOPIC_ID` (optional; `TOPIC_ID` is sent as `message_thread_id`) via `wrangler secret put`. The KV namespace id in `wrangler.jsonc` is a placeholder; the initial refresh token is seeded with `wrangler kv key put ... "MS_TOKEN" ... --remote`. Workers have a 30s execution limit, so jobs cannot sleep/delay long.
