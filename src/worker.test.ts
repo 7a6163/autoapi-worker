@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 import { ensureAccessToken, persistTokens } from "./auth.ts";
 import { runWriteAPIs } from "./apiWrite.ts";
 import { runReadAPIs } from "./apiRead.ts";
+import { sendTelegramMessage } from "./telegram.ts";
 import { updateToken } from "./updateToken.ts";
 import worker, { CRON_TASKS } from "./index.ts";
 import { shuffledCopy, pickRandom, isRetryableStatus } from "./utils.ts";
@@ -281,6 +282,25 @@ test("a failing scheduled job sends exactly one Telegram alert", async (t) => {
   await assert.rejects(worker.scheduled({ cron: "12 23 * * *", scheduledTime: 0 }, env));
 
   assert.deepEqual(alerts, ["❌ AutoApi 執行寫入型 API 失敗"]);
+});
+
+test("sendTelegramMessage posts into the forum topic only when TOPIC_ID is a valid integer", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return json({ ok: true });
+  }) as typeof fetch;
+  const { env } = fakeEnv({}, { telegram: true });
+
+  await sendTelegramMessage(env, "no topic");
+  env.TOPIC_ID = "7";
+  await sendTelegramMessage(env, "topic");
+  env.TOPIC_ID = "general";
+  await sendTelegramMessage(env, "bad topic");
+
+  assert.equal("message_thread_id" in bodies[0], false);
+  assert.equal(bodies[1].message_thread_id, 7);
+  assert.equal("message_thread_id" in bodies[2], false); // still delivered, to the main chat
 });
 
 test("pickRandom returns distinct elements and never over-picks", () => {
