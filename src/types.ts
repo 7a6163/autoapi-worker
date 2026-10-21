@@ -4,6 +4,7 @@ export interface WorkerEnv {
   E5_CONFIG: KVNamespace;
   TELEGRAM_BOT_TOKEN?: string;
   CHAT_ID?: string;
+  ADMIN_TOKEN?: string;
 }
 
 export interface ScheduledEvent {

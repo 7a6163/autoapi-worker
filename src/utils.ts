@@ -20,3 +20,8 @@ export function pickRandom<T>(source: readonly T[], count: number): T[] {
 
   return picked;
 }
+
+// Throttling is always safe to retry; a 5xx may have applied a POST, so replaying it could duplicate.
+export function isRetryableStatus(status: number, idempotent: boolean): boolean {
+  return status === 429 || (idempotent && status >= 500);
+}

@@ -1,20 +1,11 @@
 import { sendTelegramMessage } from "./telegram.ts";
 import { ensureAccessToken } from "./auth.ts";
-import { pickRandom } from "./utils.ts";
+import { pickRandom, isRetryableStatus } from "./utils.ts";
 import * as XLSX from "xlsx";
 import type { WorkerEnv } from "./types";
 
 interface TableData {
   id: string;
-}
-
-interface TeamData {
-  id: string;
-  displayName: string;
-}
-
-interface TeamsResponse {
-  value: TeamData[];
 }
 
 interface ListData {
@@ -69,7 +60,10 @@ export async function runWriteAPIs(env: WorkerEnv): Promise<void> {
         }
       }
     } finally {
-      await deleteFromOneDrive(filename, accessToken);
+      await deleteQuietly(
+        `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}`,
+        accessToken,
+      );
     }
 
     console.log("Write APIs completed successfully");
@@ -111,16 +105,12 @@ async function uploadToOneDrive(
 }
 
 // Best-effort: never mask the original failure when called from finally.
-async function deleteFromOneDrive(
-  filename: string,
-  accessToken: string,
-): Promise<void> {
-  const url = `https://graph.microsoft.com/v1.0/me/drive/root:/AutoApi/App1/${filename}`;
+async function deleteQuietly(url: string, accessToken: string): Promise<void> {
   try {
     await apiRequest("DELETE", url, null, accessToken);
-    console.log("    File deleted successfully");
+    console.log(`    Deleted ${url}`);
   } catch (error) {
-    console.error("    File cleanup failed:", error);
+    console.error(`    Cleanup failed for ${url}:`, error);
   }
 }
 
@@ -177,7 +167,7 @@ async function createAndDeleteTeam(accessToken: string): Promise<void> {
 
   console.log("    Creating team");
   const createTeamUrl = "https://graph.microsoft.com/v1.0/teams";
-  await apiRequest(
+  const createResponse = await apiRequest(
     "POST",
     createTeamUrl,
     JSON.stringify({
@@ -189,48 +179,49 @@ async function createAndDeleteTeam(accessToken: string): Promise<void> {
     accessToken,
   );
 
-  await new Promise<void>((resolve) =>
-    setTimeout(resolve, TEAM_CREATION_WAIT_MS),
-  );
-
-  console.log("    Getting team info");
-  const listTeamsUrl = "https://graph.microsoft.com/v1.0/me/joinedTeams";
-  const teamsResponse = await apiRequest("GET", listTeamsUrl, null, accessToken);
-  const teamsData = (await teamsResponse.json()) as TeamsResponse;
-
-  const team = teamsData.value.find((t) => t.displayName === teamName);
-  if (!team) {
-    console.warn(
-      `    Team "${teamName}" not found after creation, may need manual cleanup`,
+  // Creation is async (202); the id only comes back as Content-Location: /teams('{id}').
+  const teamId = createResponse.headers
+    .get("Content-Location")
+    ?.match(/teams\('([^']+)'\)/)?.[1];
+  if (!teamId) {
+    throw new Error(
+      `Team "${teamName}" returned no id, may need manual cleanup`,
     );
-    return;
   }
 
-  console.log("    Creating channel");
-  const createChannelUrl = `https://graph.microsoft.com/v1.0/teams/${team.id}/channels`;
-  const channelResponse = await apiRequest(
-    "POST",
-    createChannelUrl,
-    JSON.stringify({
-      displayName: teamName,
-      description: "Channel description",
-      membershipType: "standard",
-    }),
-    accessToken,
-  );
-  const channelData = (await channelResponse.json()) as ChannelData;
+  try {
+    await new Promise<void>((resolve) =>
+      setTimeout(resolve, TEAM_CREATION_WAIT_MS),
+    );
 
-  if (!channelData.id) {
-    console.warn("    Channel creation returned no ID, skipping channel delete");
-  } else {
-    console.log("    Deleting channel");
-    const deleteChannelUrl = `https://graph.microsoft.com/v1.0/teams/${team.id}/channels/${channelData.id}`;
-    await apiRequest("DELETE", deleteChannelUrl, null, accessToken);
+    console.log("    Creating channel");
+    const createChannelUrl = `https://graph.microsoft.com/v1.0/teams/${teamId}/channels`;
+    const channelResponse = await apiRequest(
+      "POST",
+      createChannelUrl,
+      JSON.stringify({
+        displayName: teamName,
+        description: "Channel description",
+        membershipType: "standard",
+      }),
+      accessToken,
+    );
+    const channelData = (await channelResponse.json()) as ChannelData;
+
+    if (!channelData.id) {
+      console.warn("    Channel creation returned no ID, skipping channel delete");
+    } else {
+      console.log("    Deleting channel");
+      const deleteChannelUrl = `https://graph.microsoft.com/v1.0/teams/${teamId}/channels/${channelData.id}`;
+      await apiRequest("DELETE", deleteChannelUrl, null, accessToken);
+    }
+  } finally {
+    console.log("    Deleting team");
+    await deleteQuietly(
+      `https://graph.microsoft.com/v1.0/groups/${teamId}`,
+      accessToken,
+    );
   }
-
-  console.log("    Deleting team");
-  const deleteTeamUrl = `https://graph.microsoft.com/v1.0/groups/${team.id}`;
-  await apiRequest("DELETE", deleteTeamUrl, null, accessToken);
 }
 
 async function createAndDeleteTask(accessToken: string): Promise<void> {
@@ -249,26 +240,30 @@ async function createAndDeleteTask(accessToken: string): Promise<void> {
     throw new Error("Task list creation returned no ID");
   }
 
-  console.log("    Creating task");
-  const createTaskUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks`;
-  const taskResponse = await apiRequest(
-    "POST",
-    createTaskUrl,
-    JSON.stringify({ title: taskName }),
-    accessToken,
-  );
-  const taskData = (await taskResponse.json()) as TaskData;
-  if (!taskData.id) {
-    throw new Error("Task creation returned no ID");
+  try {
+    console.log("    Creating task");
+    const createTaskUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks`;
+    const taskResponse = await apiRequest(
+      "POST",
+      createTaskUrl,
+      JSON.stringify({ title: taskName }),
+      accessToken,
+    );
+    const taskData = (await taskResponse.json()) as TaskData;
+    if (!taskData.id) {
+      throw new Error("Task creation returned no ID");
+    }
+
+    console.log("    Deleting task");
+    const deleteTaskUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks/${taskData.id}`;
+    await apiRequest("DELETE", deleteTaskUrl, null, accessToken);
+  } finally {
+    console.log("    Deleting task list");
+    await deleteQuietly(
+      `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}`,
+      accessToken,
+    );
   }
-
-  console.log("    Deleting task");
-  const deleteTaskUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}/tasks/${taskData.id}`;
-  await apiRequest("DELETE", deleteTaskUrl, null, accessToken);
-
-  console.log("    Deleting task list");
-  const deleteListUrl = `https://graph.microsoft.com/v1.0/me/todo/lists/${listData.id}`;
-  await apiRequest("DELETE", deleteListUrl, null, accessToken);
 }
 
 async function apiRequest(
@@ -289,29 +284,34 @@ async function apiRequest(
     options.body = body;
   }
 
-  for (let retry = 0; retry < MAX_RETRIES; retry++) {
+  // A POST that timed out or 5xx'd may still have created the resource; replaying it leaks a duplicate.
+  const idempotent = method !== "POST";
+
+  for (let retry = 0; ; retry++) {
+    const lastTry = retry === MAX_RETRIES - 1;
+    let response: Response;
     try {
-      const response = await fetch(url, options);
-
-      if (response.ok) {
-        console.log("        Operation successful");
-        return response;
-      }
-
-      // Consume body to release connection before retry or final throw
-      await response.body?.cancel();
-
-      if (retry === MAX_RETRIES - 1) {
-        throw new Error(`API request failed: ${response.status}`);
-      }
+      response = await fetch(url, options);
     } catch (error) {
-      if (retry === MAX_RETRIES - 1) {
+      if (lastTry || !idempotent) {
         throw error;
       }
+      await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+      continue;
+    }
+
+    if (response.ok) {
+      console.log("        Operation successful");
+      return response;
+    }
+
+    // Consume body to release connection before retry or final throw
+    await response.body?.cancel();
+
+    if (lastTry || !isRetryableStatus(response.status, idempotent)) {
+      throw new Error(`API request failed: ${response.status}`);
     }
 
     await new Promise<void>((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
   }
-
-  throw new Error("Unreachable: retry loop exited without return or throw");
 }
