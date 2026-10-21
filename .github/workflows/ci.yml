@@ -18,9 +18,11 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: 24
+          cache: npm
 
-      # No lockfile is committed (see .gitignore), so npm ci isn't available.
-      - run: npm install
+      - run: npm ci
+
+      - run: npm audit --audit-level=high
 
       - run: npm run typecheck
 
