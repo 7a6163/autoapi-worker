@@ -10,6 +10,8 @@
     "deploy": "wrangler deploy",
     "tail": "wrangler tail",
     "typecheck": "wrangler types && tsc --noEmit",
+    "format": "oxfmt src",
+    "format:check": "oxfmt --check src",
     "test": "node --test \"src/**/*.test.ts\"",
     "test:coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"src/**/*.test.ts\" --test-reporter=spec --test-reporter-destination=stdout --test-reporter=lcov --test-reporter-destination=lcov.info \"src/**/*.test.ts\""
   },
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "oxfmt": "^0.74.0",
     "typescript": "^7.0.2",
     "wrangler": "^4.28.0"
   }
